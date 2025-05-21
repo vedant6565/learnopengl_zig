@@ -55,7 +55,7 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     var arena_allocator_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_allocator_state.deinit();
-    const arena = arena_allocator_state.allocator();
+    // const arena = arena_allocator_state.allocator();
 
     const vertexShader = createShader(gl.VERTEX_SHADER, vertShader, "vertex");
     defer gl.DeleteShader(vertexShader);
@@ -140,8 +140,8 @@ pub fn main() !void {
     zstbi.init(allocator);
     defer zstbi.deinit();
 
-    const image_path = pathToContent(arena, "texture/wall.jpg") catch unreachable;
-    var image = try zstbi.Image.loadFromFile(&image_path, 0);
+    // const image_path = pathToContent(arena, "texture/wall.jpg") catch unreachable;
+    var image = try zstbi.Image.loadFromFile("texture/wall.jpg", 0);
     defer image.deinit();
 
     gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image.width), @intCast(image.height), 0, gl.RGB, gl.UNSIGNED_BYTE, @ptrCast(image.data));
