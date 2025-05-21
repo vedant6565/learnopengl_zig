@@ -26,8 +26,11 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("zglfw", zglfw.module("root"));
     exe.linkLibrary(zglfw.artifact("glfw"));
 
-    const zm = b.dependency("zm", .{});
-    exe_mod.addImport("zm", zm.module("zm"));
+    const zmath = b.dependency("zmath", .{});
+    exe.root_module.addImport("zmath", zmath.module("root"));
+
+    const zstbi = b.dependency("zstbi", .{});
+    exe.root_module.addImport("zstbi", zstbi.module("root"));
 
     const gl_bindings = @import("zigglgen").generateBindingsModule(b, .{
         .api = .gl,

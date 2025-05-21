@@ -1,7 +1,8 @@
 const std = @import("std");
 const glfw = @import("zglfw");
 const gl = @import("gl");
-const zm = @import("zm");
+const zm = @import("zmath");
+const zstbi = @import("zstbi");
 
 const WindowSize = struct {
     pub const width: c_int = 800;
@@ -9,21 +10,22 @@ const WindowSize = struct {
 };
 
 const vertShader =
-    \\ #version 430 core
-    \\ layout (location = 0) in vec3 aPos
-    \\ void main () {
-    \\  gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0f);
+    \\ #version 330 core
+    \\ layout (location = 0) in vec3 aPos;
+    \\ layout (location = 1) in vec3 aColor;
+    \\ out vec3 ourColor;
+    \\ void main() {
+    \\     gl_Position = vec4(aPos, 1.0);
+    \\     ourColor = aColor;
     \\ }
 ;
 
 const fragShader =
     \\ #version 430 core
-    \\
-    \\ out vec4 color;
-    \\ 
-    \\ void main(void)
-    \\ {
-    \\     color = vec4(0.0, 0.8, 1.0, 1.0);
+    \\ out vec4 FragColor;
+    \\ in vec3 ourColor;
+    \\ void main() {
+    \\     FragColor = vec4(ourColor, 1.0);
     \\ }
 ;
 
@@ -49,31 +51,17 @@ pub fn main() !void {
     gl.makeProcTableCurrent(&procs);
     defer gl.makeProcTableCurrent(null);
 
-    const vertexShader = gl.CreateShader(gl.VERTEX_SHADER);
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    var arena_allocator_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_allocator_state.deinit();
+    const arena = arena_allocator_state.allocator();
+
+    const vertexShader = createShader(gl.VERTEX_SHADER, vertShader, "vertex");
     defer gl.DeleteShader(vertexShader);
 
-    gl.ShaderSource(vertexShader, 1, @ptrCast(&vertShader), null);
-    gl.CompileShader(vertexShader);
-
-    var success: c_int = undefined;
-    var infolog: [512]u8 = undefined;
-    gl.GetShaderiv(vertexShader, gl.COMPILE_STATUS, &success);
-    if (success != 0) {
-        gl.GetShaderInfoLog(vertexShader, 512, null, &infolog);
-        std.debug.print("error compileing vertex shader {s}\n", .{infolog});
-    }
-
-    const fragmentShader = gl.CreateShader(gl.FRAGMENT_SHADER);
+    const fragmentShader = createShader(gl.FRAGMENT_SHADER, fragShader, "fragment");
     defer gl.DeleteShader(fragmentShader);
-
-    gl.ShaderSource(fragmentShader, 1, @ptrCast(&fragShader), null);
-    gl.CompileShader(fragmentShader);
-
-    gl.GetShaderiv(fragmentShader, gl.COMPILE_STATUS, &success);
-    if (success != 0) {
-        gl.GetShaderInfoLog(fragmentShader, 512, null, &infolog);
-        std.debug.print("error compileing fragment shader {s}\n", .{infolog});
-    }
 
     const shaderProgrem = gl.CreateProgram();
     defer gl.DeleteProgram(shaderProgrem);
@@ -82,20 +70,29 @@ pub fn main() !void {
     gl.AttachShader(shaderProgrem, fragmentShader);
     gl.LinkProgram(shaderProgrem);
 
+    var success: c_int = undefined;
+    var infoLog: [512]u8 = undefined;
     gl.GetProgramiv(shaderProgrem, gl.LINK_STATUS, &success);
-    if (success != 0) {
-        gl.GetProgramInfoLog(shaderProgrem, 512, null, &infolog);
-        std.debug.print("error linking shader progrem {s}\n", .{infolog});
+    if (success == 0) {
+        gl.GetProgramInfoLog(shaderProgrem, 512, null, &infoLog);
+        std.debug.print("error linking shader progrem {s}\n", .{infoLog});
     }
 
+    // const vertices = [_]f32{
+    //     -0.5, -0.5, 0.0, 1.0, 0.0, 0.0, // bottom right
+    //     0.5, -0.5, 0.0, 0.0, 1.0, 0.0, // bottom left
+    //     0.0, 0.5, 0.0, 0.0, 0.0, 1.0, // top
+    // };
+
     const vertices = [_]f32{
-        0.5, 0.5, 0.0, // top right
-        0.5, -0.5, 0.0, // bottom right
-        -0.5, -0.5, 0.0, // bottom left
-        -0.5, 0.5, 0.0, // top left
+        // positions          // colors           // texture coords
+        0.5, 0.5, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, // top right
+        0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, // bottom right
+        -0.5, -0.5, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, // bottom left
+        -0.5, 0.5, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, // top left
     };
 
-    const indices = [_]u8{
+    const indices = [_]c_uint{
         0, 1, 3, // first
         1, 2, 3, // secend
     };
@@ -118,14 +115,36 @@ pub fn main() !void {
     gl.BufferData(gl.ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, gl.STATIC_DRAW);
 
     gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, EBO);
-    gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, @sizeOf(u8) * indices.len, &indices, gl.STATIC_DRAW);
+    gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, @sizeOf(c_uint) * indices.len, &indices, gl.STATIC_DRAW);
 
-    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 3 * @sizeOf(f32), 0);
+    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 6 * @sizeOf(f32), 0);
     gl.EnableVertexAttribArray(0);
+
+    gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 6 * @sizeOf(f32), 3 * @sizeOf(f32));
+    gl.EnableVertexAttribArray(1);
 
     gl.BindBuffer(gl.ARRAY_BUFFER, 0);
     gl.BindVertexArray(0);
     // gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE);
+
+    var texture: c_uint = undefined;
+    gl.GenTextures(1, (&texture)[0..1]);
+    gl.BindTexture(gl.TEXTURE_2D, texture);
+
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    zstbi.init(allocator);
+    defer zstbi.deinit();
+
+    const image_path = pathToContent(arena, "texture/wall.jpg") catch unreachable;
+    var image = try zstbi.Image.loadFromFile(&image_path, 0);
+    defer image.deinit();
+
+    gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image.width), @intCast(image.height), 0, gl.RGB, gl.UNSIGNED_BYTE, @ptrCast(image.data));
 
     _ = glfw.setFramebufferSizeCallback(window, framebufferSizeCallback);
 
@@ -135,11 +154,12 @@ pub fn main() !void {
         gl.Clear(gl.COLOR_BUFFER_BIT);
         gl.ClearColor(0.2, 0.3, 0.3, 1);
 
+        gl.BindTexture(gl.TEXTURE_2D, texture);
+
         gl.UseProgram(shaderProgrem);
         gl.BindVertexArray(VAO);
         gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
         // gl.DrawArrays(gl.TRIANGLES, 0, 3);
-        gl.BindVertexArray(0);
 
         window.swapBuffers();
         glfw.pollEvents();
@@ -155,4 +175,31 @@ fn processInput(window: *glfw.Window) void {
     if (glfw.getKey(window, glfw.Key.escape) == glfw.Action.press) {
         glfw.setWindowShouldClose(window, true);
     }
+}
+
+fn createShader(shaderType: c_uint, shaderString: [:0]const u8, name: [:0]const u8) c_uint {
+    const shader = gl.CreateShader(shaderType);
+
+    gl.ShaderSource(shader, 1, @ptrCast(&shaderString), null);
+    gl.CompileShader(shader);
+
+    var success: c_int = undefined;
+    var infoLog: [512]u8 = undefined;
+    gl.GetShaderiv(shader, gl.COMPILE_STATUS, &success);
+    if (success == 0) {
+        gl.GetShaderInfoLog(shader, 512, null, &infoLog);
+        std.debug.print("error compileing {s} shader {s}\n", .{ name, infoLog });
+    }
+
+    return shader;
+}
+
+pub fn pathToContent(arena: std.mem.Allocator, resource_relative_path: [:0]const u8) ![4096:0]u8 {
+    const exe_path = std.fs.selfExeDirPathAlloc(arena) catch unreachable;
+    const content_path = std.fs.path.join(arena, &.{ exe_path, resource_relative_path }) catch unreachable;
+    var content_path_zero: [4096:0]u8 = undefined;
+    if (content_path.len >= 4096) return error.NameTooLong;
+    std.mem.copyForwards(u8, &content_path_zero, content_path);
+    content_path_zero[content_path.len] = 0;
+    return content_path_zero;
 }
