@@ -56,6 +56,10 @@
             .url = "git+https://github.com/zig-gamedev/zstbi#094c4bba5cdbec167d3f6aaa98cccccd5c99145f",
             .hash = "zstbi-0.11.0-dev-L0Ea_-eVBwCl8RYA98PhLDw3Fhw5k7FJOHSMDKWDOvqx",
         },
+        .zigimg = .{
+            .url = "git+https://github.com/zigimg/zigimg.git#51377e6f9c66ec8b676a7980f3997e524bc9f256",
+            .hash = "zigimg-0.1.0-AAAAALeZEgAPd_hs17VOsYS4NJiOw1Hqghf0cblFqdwp",
+        },
     },
     .paths = .{
         "build.zig",

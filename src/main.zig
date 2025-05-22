@@ -3,6 +3,7 @@ const glfw = @import("zglfw");
 const gl = @import("gl");
 const zm = @import("zmath");
 const zstbi = @import("zstbi");
+const Shader = @import("libs/shader.zig");
 
 const WindowSize = struct {
     pub const width: c_int = 800;
@@ -13,10 +14,13 @@ const vertShader =
     \\ #version 330 core
     \\ layout (location = 0) in vec3 aPos;
     \\ layout (location = 1) in vec3 aColor;
+    \\ layout (location = 2) in vec2 aTexCoord;
     \\ out vec3 ourColor;
+    \\ out vec2 TexCoord;
     \\ void main() {
     \\     gl_Position = vec4(aPos, 1.0);
     \\     ourColor = aColor;
+    \\     TexCoord = aTexCoord;
     \\ }
 ;
 
@@ -24,8 +28,10 @@ const fragShader =
     \\ #version 430 core
     \\ out vec4 FragColor;
     \\ in vec3 ourColor;
+    \\ in vec2 TexCoord;
+    \\ uniform sampler2D ourTexture;
     \\ void main() {
-    \\     FragColor = vec4(ourColor, 1.0);
+    \\     FragColor = texture(ourTexture, TexCoord);
     \\ }
 ;
 
@@ -53,30 +59,35 @@ pub fn main() !void {
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    var arena_allocator_state = std.heap.ArenaAllocator.init(allocator);
-    defer arena_allocator_state.deinit();
+    // var arena_allocator_state = std.heap.ArenaAllocator.init(allocator);
+    // defer arena_allocator_state.deinit();
     // const arena = arena_allocator_state.allocator();
 
-    const vertexShader = createShader(gl.VERTEX_SHADER, vertShader, "vertex");
-    defer gl.DeleteShader(vertexShader);
+    // const vertexShader = createShader(gl.VERTEX_SHADER, vertShader, "vertex");
+    // defer gl.DeleteShader(vertexShader);
+    //
+    // const fragmentShader = createShader(gl.FRAGMENT_SHADER, fragShader, "fragment");
+    // defer gl.DeleteShader(fragmentShader);
 
-    const fragmentShader = createShader(gl.FRAGMENT_SHADER, fragShader, "fragment");
-    defer gl.DeleteShader(fragmentShader);
-
-    const shaderProgrem = gl.CreateProgram();
-    defer gl.DeleteProgram(shaderProgrem);
-
-    gl.AttachShader(shaderProgrem, vertexShader);
-    gl.AttachShader(shaderProgrem, fragmentShader);
-    gl.LinkProgram(shaderProgrem);
-
-    var success: c_int = undefined;
-    var infoLog: [512]u8 = undefined;
-    gl.GetProgramiv(shaderProgrem, gl.LINK_STATUS, &success);
-    if (success == 0) {
-        gl.GetProgramInfoLog(shaderProgrem, 512, null, &infoLog);
-        std.debug.print("error linking shader progrem {s}\n", .{infoLog});
-    }
+    const shaders: []const Shader.shaderStruct = &.{
+        Shader.shaderStruct{ .name = "vertex", .type = gl.VERTEX_SHADER, .path = "shader/vertex.glsl" },
+        Shader.shaderStruct{ .name = "fragment", .type = gl.FRAGMENT_SHADER, .path = "shader/fragment.glsl" },
+    };
+    const ourShader = Shader.create(allocator, @constCast(shaders));
+    // const shaderProgrem = gl.CreateProgram();
+    // defer gl.DeleteProgram(shaderProgrem);
+    //
+    // gl.AttachShader(shaderProgrem, vertexShader);
+    // gl.AttachShader(shaderProgrem, fragmentShader);
+    // gl.LinkProgram(shaderProgrem);
+    //
+    // var success: c_int = undefined;
+    // var infoLog: [512]u8 = undefined;
+    // gl.GetProgramiv(shaderProgrem, gl.LINK_STATUS, &success);
+    // if (success == 0) {
+    //     gl.GetProgramInfoLog(shaderProgrem, 512, null, &infoLog);
+    //     std.debug.print("error linking shader progrem {s}\n", .{infoLog});
+    // }
 
     // const vertices = [_]f32{
     //     -0.5, -0.5, 0.0, 1.0, 0.0, 0.0, // bottom right
@@ -117,11 +128,14 @@ pub fn main() !void {
     gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, EBO);
     gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, @sizeOf(c_uint) * indices.len, &indices, gl.STATIC_DRAW);
 
-    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 6 * @sizeOf(f32), 0);
+    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 8 * @sizeOf(f32), 0);
     gl.EnableVertexAttribArray(0);
 
-    gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 6 * @sizeOf(f32), 3 * @sizeOf(f32));
+    gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 8 * @sizeOf(f32), 3 * @sizeOf(f32));
     gl.EnableVertexAttribArray(1);
+
+    gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, 8 * @sizeOf(f32), 6 * @sizeOf(f32));
+    gl.EnableVertexAttribArray(2);
 
     gl.BindBuffer(gl.ARRAY_BUFFER, 0);
     gl.BindVertexArray(0);
@@ -141,10 +155,11 @@ pub fn main() !void {
     defer zstbi.deinit();
 
     // const image_path = pathToContent(arena, "texture/wall.jpg") catch unreachable;
-    var image = try zstbi.Image.loadFromFile("texture/wall.jpg", 0);
+    var image = try zstbi.Image.loadFromFile("/home/vedant/project/zig/learnopengl_zig/src/texture/container.jpg", 0);
     defer image.deinit();
 
     gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image.width), @intCast(image.height), 0, gl.RGB, gl.UNSIGNED_BYTE, @ptrCast(image.data));
+    gl.GenerateMipmap(gl.TEXTURE_2D);
 
     _ = glfw.setFramebufferSizeCallback(window, framebufferSizeCallback);
 
@@ -156,7 +171,8 @@ pub fn main() !void {
 
         gl.BindTexture(gl.TEXTURE_2D, texture);
 
-        gl.UseProgram(shaderProgrem);
+        ourShader.use();
+        // gl.UseProgram(shaderProgrem);
         gl.BindVertexArray(VAO);
         gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
         // gl.DrawArrays(gl.TRIANGLES, 0, 3);
