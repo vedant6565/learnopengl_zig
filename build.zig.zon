@@ -60,6 +60,10 @@
             .url = "git+https://github.com/zigimg/zigimg.git#51377e6f9c66ec8b676a7980f3997e524bc9f256",
             .hash = "zigimg-0.1.0-AAAAALeZEgAPd_hs17VOsYS4NJiOw1Hqghf0cblFqdwp",
         },
+        .zm = .{
+            .url = "git+https://github.com/griush/zm#3abba8c5a5b5c93e7374bffbd6740e687fb18f7d",
+            .hash = "zm-0.3.0-cLX-WQvNAADFZdfz6P8uKShdAL7gUncyKthhdtxWRieo",
+        },
     },
     .paths = .{
         "build.zig",

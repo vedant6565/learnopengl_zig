@@ -10,31 +10,6 @@ const WindowSize = struct {
     pub const height: c_int = 600;
 };
 
-const vertShader =
-    \\ #version 330 core
-    \\ layout (location = 0) in vec3 aPos;
-    \\ layout (location = 1) in vec3 aColor;
-    \\ layout (location = 2) in vec2 aTexCoord;
-    \\ out vec3 ourColor;
-    \\ out vec2 TexCoord;
-    \\ void main() {
-    \\     gl_Position = vec4(aPos, 1.0);
-    \\     ourColor = aColor;
-    \\     TexCoord = aTexCoord;
-    \\ }
-;
-
-const fragShader =
-    \\ #version 430 core
-    \\ out vec4 FragColor;
-    \\ in vec3 ourColor;
-    \\ in vec2 TexCoord;
-    \\ uniform sampler2D ourTexture;
-    \\ void main() {
-    \\     FragColor = texture(ourTexture, TexCoord);
-    \\ }
-;
-
 var procs: gl.ProcTable = undefined;
 
 pub fn main() !void {
@@ -51,6 +26,7 @@ pub fn main() !void {
 
     glfw.makeContextCurrent(window);
     defer glfw.makeContextCurrent(null);
+    _ = glfw.setFramebufferSizeCallback(window, framebufferSizeCallback);
 
     if (!procs.init(glfw.getProcAddress)) return error.InitFailed;
 
@@ -59,35 +35,16 @@ pub fn main() !void {
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    // var arena_allocator_state = std.heap.ArenaAllocator.init(allocator);
-    // defer arena_allocator_state.deinit();
-    // const arena = arena_allocator_state.allocator();
+    var arena_allocator_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_allocator_state.deinit();
+    const arena = arena_allocator_state.allocator();
 
-    // const vertexShader = createShader(gl.VERTEX_SHADER, vertShader, "vertex");
-    // defer gl.DeleteShader(vertexShader);
-    //
-    // const fragmentShader = createShader(gl.FRAGMENT_SHADER, fragShader, "fragment");
-    // defer gl.DeleteShader(fragmentShader);
-
-    const shaders: []const Shader.shaderStruct = &.{
-        Shader.shaderStruct{ .name = "vertex", .type = gl.VERTEX_SHADER, .path = "shader/vertex.glsl" },
-        Shader.shaderStruct{ .name = "fragment", .type = gl.FRAGMENT_SHADER, .path = "shader/fragment.glsl" },
-    };
-    const ourShader = Shader.create(allocator, @constCast(shaders));
-    // const shaderProgrem = gl.CreateProgram();
-    // defer gl.DeleteProgram(shaderProgrem);
-    //
-    // gl.AttachShader(shaderProgrem, vertexShader);
-    // gl.AttachShader(shaderProgrem, fragmentShader);
-    // gl.LinkProgram(shaderProgrem);
-    //
-    // var success: c_int = undefined;
-    // var infoLog: [512]u8 = undefined;
-    // gl.GetProgramiv(shaderProgrem, gl.LINK_STATUS, &success);
-    // if (success == 0) {
-    //     gl.GetProgramInfoLog(shaderProgrem, 512, null, &infoLog);
-    //     std.debug.print("error linking shader progrem {s}\n", .{infoLog});
-    // }
+    const ourShader = Shader.create(
+        allocator,
+        "shaders/vertex.glsl",
+        "shaders/fragment.glsl",
+    );
+    defer gl.DeleteProgram(ourShader.ID);
 
     // const vertices = [_]f32{
     //     -0.5, -0.5, 0.0, 1.0, 0.0, 0.0, // bottom right
@@ -141,27 +98,47 @@ pub fn main() !void {
     gl.BindVertexArray(0);
     // gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE);
 
-    var texture: c_uint = undefined;
-    gl.GenTextures(1, (&texture)[0..1]);
-    gl.BindTexture(gl.TEXTURE_2D, texture);
+    // var texture: c_uint = undefined;
+    // gl.GenTextures(1, (&texture)[0..1]);
+    // gl.ActiveTexture(gl.TEXTURE0);
+    // gl.BindTexture(gl.TEXTURE_2D, texture);
+    //
+    // gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    // gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    //
+    // gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    // gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    //
+    zstbi.init(allocator);
+    defer zstbi.deinit();
+    //
+    // const image_path = try pathToContent(arena, "texture/container.jpg");
+    // var image = try zstbi.Image.loadFromFile(image_path, 0);
+    // defer image.deinit();
+    //
+    // gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image.width), @intCast(image.height), 0, gl.RGB, gl.UNSIGNED_BYTE, @ptrCast(image.data));
+    // gl.GenerateMipmap(gl.TEXTURE_2D);
+
+    var texture2: c_uint = undefined;
+    gl.GenTextures(1, (&texture2)[0..1]);
+    gl.ActiveTexture(gl.TEXTURE1);
+    gl.BindTexture(gl.TEXTURE_2D, texture2);
 
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
 
-    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-    zstbi.init(allocator);
-    defer zstbi.deinit();
+    const image_path2 = try pathToContent(arena, "texture/awesomeface.png");
+    var image2 = try zstbi.Image.loadFromFile(image_path2, 0);
+    defer image2.deinit();
 
-    // const image_path = pathToContent(arena, "texture/wall.jpg") catch unreachable;
-    var image = try zstbi.Image.loadFromFile("/home/vedant/project/zig/learnopengl_zig/src/texture/container.jpg", 0);
-    defer image.deinit();
+    gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image2.width), @intCast(image2.height), 0, gl.RGB, gl.UNSIGNED_BYTE, @ptrCast(image2.data));
 
-    gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image.width), @intCast(image.height), 0, gl.RGB, gl.UNSIGNED_BYTE, @ptrCast(image.data));
-    gl.GenerateMipmap(gl.TEXTURE_2D);
-
-    _ = glfw.setFramebufferSizeCallback(window, framebufferSizeCallback);
+    ourShader.use();
+    // ourShader.setInt("texture1", 0);
+    ourShader.setInt("texture2", 1);
 
     while (!glfw.windowShouldClose(window)) {
         processInput(window);
@@ -169,10 +146,13 @@ pub fn main() !void {
         gl.Clear(gl.COLOR_BUFFER_BIT);
         gl.ClearColor(0.2, 0.3, 0.3, 1);
 
-        gl.BindTexture(gl.TEXTURE_2D, texture);
+        // gl.ActiveTexture(gl.TEXTURE0);
+        // gl.BindTexture(gl.TEXTURE_2D, texture);
+
+        gl.ActiveTexture(gl.TEXTURE1);
+        gl.BindTexture(gl.TEXTURE_2D, texture2);
 
         ourShader.use();
-        // gl.UseProgram(shaderProgrem);
         gl.BindVertexArray(VAO);
         gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
         // gl.DrawArrays(gl.TRIANGLES, 0, 3);
@@ -193,29 +173,9 @@ fn processInput(window: *glfw.Window) void {
     }
 }
 
-fn createShader(shaderType: c_uint, shaderString: [:0]const u8, name: [:0]const u8) c_uint {
-    const shader = gl.CreateShader(shaderType);
-
-    gl.ShaderSource(shader, 1, @ptrCast(&shaderString), null);
-    gl.CompileShader(shader);
-
-    var success: c_int = undefined;
-    var infoLog: [512]u8 = undefined;
-    gl.GetShaderiv(shader, gl.COMPILE_STATUS, &success);
-    if (success == 0) {
-        gl.GetShaderInfoLog(shader, 512, null, &infoLog);
-        std.debug.print("error compileing {s} shader {s}\n", .{ name, infoLog });
-    }
-
-    return shader;
-}
-
-pub fn pathToContent(arena: std.mem.Allocator, resource_relative_path: [:0]const u8) ![4096:0]u8 {
+pub fn pathToContent(arena: std.mem.Allocator, resource_relative_path: []const u8) ![:0]const u8 {
     const exe_path = std.fs.selfExeDirPathAlloc(arena) catch unreachable;
     const content_path = std.fs.path.join(arena, &.{ exe_path, resource_relative_path }) catch unreachable;
-    var content_path_zero: [4096:0]u8 = undefined;
-    if (content_path.len >= 4096) return error.NameTooLong;
-    std.mem.copyForwards(u8, &content_path_zero, content_path);
-    content_path_zero[content_path.len] = 0;
+    const content_path_zero: [:0]const u8 = std.mem.Allocator.dupeZ(arena, u8, content_path) catch unreachable;
     return content_path_zero;
 }

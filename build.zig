@@ -32,6 +32,9 @@ pub fn build(b: *std.Build) void {
     const zstbi = b.dependency("zstbi", .{});
     exe.root_module.addImport("zstbi", zstbi.module("root"));
 
+    const zm = b.dependency("zm", .{});
+    exe_mod.addImport("zm", zm.module("zm"));
+
     const zigimg_dependency = b.dependency("zigimg", .{
         .target = target,
         .optimize = optimize,
@@ -48,6 +51,9 @@ pub fn build(b: *std.Build) void {
     exe_mod.addImport("gl", gl_bindings);
 
     b.installArtifact(exe);
+
+    b.installDirectory(.{ .source_dir = .{ .cwd_relative = "src/shaders/" }, .install_dir = .bin, .install_subdir = "shaders/" });
+    b.installDirectory(.{ .source_dir = .{ .cwd_relative = "src/texture/" }, .install_dir = .bin, .install_subdir = "texture/" });
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
