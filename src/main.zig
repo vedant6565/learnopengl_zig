@@ -11,6 +11,7 @@ const WindowSize = struct {
 };
 
 var procs: gl.ProcTable = undefined;
+const rad_conversion = std.math.pi / 180.0;
 
 pub fn main() !void {
     try glfw.init();
@@ -47,27 +48,80 @@ pub fn main() !void {
     defer gl.DeleteProgram(ourShader.ID);
 
     // const vertices = [_]f32{
-    //     -0.5, -0.5, 0.0, 1.0, 0.0, 0.0, // bottom right
-    //     0.5, -0.5, 0.0, 0.0, 1.0, 0.0, // bottom left
-    //     0.0, 0.5, 0.0, 0.0, 0.0, 1.0, // top
+    //     // positions      // colors        // texture coords
+    //     0.5, 0.5, 0.0, 0.3333, 0.50, // top right
+    //     0.5, -0.5, 0.0, 0.3333, 0.25, // bottom right
+    //     -0.5, -0.5, 0.0, 0.0, 0.25, // bottom left
+    //     -0.5, 0.5, 0.0, 0.0, 0.50, // top left
+    // };
+    //
+    // const indices = [_]c_uint{
+    //     // note that we start from 0!
+    //     0, 1, 3, // first triangle
+    //     1, 2, 3, // second triangle
     // };
 
     const vertices = [_]f32{
-        // positions          // colors           // texture coords
-        0.5, 0.5, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, // top right
-        0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, // bottom right
-        -0.5, -0.5, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, // bottom left
-        -0.5, 0.5, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, // top left
+        // positions          // texture coords
+        -0.5, -0.5, -0.5, 0.0,  0.0,
+        0.5,  -0.5, -0.5, 1.0,  0.0,
+        0.5,  0.5,  -0.5, 1.0,  1.0,
+        0.5,  0.5,  -0.5, 1.0,  1.0,
+        -0.5, 0.5,  -0.5, 0.0,  1.0,
+        -0.5, -0.5, -0.5, 0.0,  0.0,
+
+        -0.5, -0.5, 0.5,  0.0,  0.0,
+        0.5,  -0.5, 0.5,  1.0,  0.0,
+        0.5,  0.5,  0.5,  1.0,  1.0,
+        0.5,  0.5,  0.5,  1.0,  1.0,
+        -0.5, 0.5,  0.5,  0.0,  1.0,
+        -0.5, -0.5, 0.5,  0.0,  0.0,
+
+        -0.5, 0.5,  0.5,  1.0,  0.0,
+        -0.5, 0.5,  -0.5, 1.0,  1.0,
+        -0.5, -0.5, -0.5, 0.0,  1.0,
+        -0.5, -0.5, -0.5, 0.0,  1.0,
+        -0.5, -0.5, 0.5,  0.0,  0.0,
+        -0.5, 0.5,  0.5,  1.0,  0.0,
+
+        0.5,  0.5,  0.5,  1.0,  0.0,
+        0.5,  0.5,  -0.5, 1.0,  1.0,
+        0.5,  -0.5, -0.5, 0.0,  1.0,
+        0.5,  -0.5, -0.5, 0.0,  1.0,
+        0.5,  -0.5, 0.5,  0.0,  0.0,
+        0.5,  0.5,  0.5,  1.0,  0.0,
+
+        -0.5, -0.5, -0.5, 0.0,  1.0,
+        0.5,  -0.5, -0.5, 1.0,  1.0,
+        0.5,  -0.5, 0.5,  1.0,  0.0,
+        0.5,  -0.5, 0.5,  1.0,  0.0,
+        -0.5, -0.5, 0.5,  0.0,  0.0,
+        -0.5, -0.5, -0.5, 0.0,  1.0,
+
+        -0.5, 0.5,  -0.5, 0.25, 1.0,
+        0.5,  0.5,  -0.5, 1.0,  1.0,
+        0.5,  0.5,  0.5,  1.0,  0.3333,
+        0.5,  0.5,  0.5,  1.0,  0.3333,
+        -0.5, 0.5,  0.5,  0.25, 0.3333,
+        -0.5, 0.5,  -0.5, 0.25, 1.0,
     };
 
-    const indices = [_]c_uint{
-        0, 1, 3, // first
-        1, 2, 3, // secend
+    const indices = [_][3]f32{
+        .{ 0.0, 0.0, 0.0 }, //
+        .{ 2.0, 5.0, -15.0 }, //
+        .{ -1.5, -2.2, -2.5 }, //
+        .{ -3.8, -2.0, -12.3 }, //
+        .{ 2.4, -0.4, -3.5 }, //
+        .{ -1.7, 3.0, -7.5 }, //
+        .{ 1.3, -2.0, -2.5 }, //
+        .{ 1.5, 2.0, -2.5 }, //
+        .{ 1.5, 0.2, -1.5 }, //
+        .{ -1.3, 1.0, -1.5 }, //
     };
 
     var VBO: c_uint = undefined;
     var VAO: c_uint = undefined;
-    var EBO: c_uint = undefined;
+    // var EBO: c_uint = undefined;
 
     gl.GenVertexArrays(1, (&VAO)[0..1]);
     defer gl.DeleteVertexArrays(1, (&VAO)[0..1]);
@@ -75,49 +129,50 @@ pub fn main() !void {
     gl.GenBuffers(1, (&VBO)[0..1]);
     defer gl.DeleteBuffers(1, (&VBO)[0..1]);
 
-    gl.GenBuffers(1, (&EBO)[0..1]);
-    defer gl.DeleteBuffers(1, (&EBO)[0..1]);
+    // gl.GenBuffers(1, (&EBO)[0..1]);
+    // defer gl.DeleteBuffers(1, (&EBO)[0..1]);
 
     gl.BindVertexArray(VAO);
     gl.BindBuffer(gl.ARRAY_BUFFER, VBO);
     gl.BufferData(gl.ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, gl.STATIC_DRAW);
 
-    gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, EBO);
-    gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, @sizeOf(c_uint) * indices.len, &indices, gl.STATIC_DRAW);
+    // gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, EBO);
+    // gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, @sizeOf(c_uint) * indices.len, &indices, gl.STATIC_DRAW);
 
-    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 8 * @sizeOf(f32), 0);
+    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 5 * @sizeOf(f32), 0);
     gl.EnableVertexAttribArray(0);
 
-    gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 8 * @sizeOf(f32), 3 * @sizeOf(f32));
+    // gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 8 * @sizeOf(f32), 3 * @sizeOf(f32));
+    // gl.EnableVertexAttribArray(1);
+
+    gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 5 * @sizeOf(f32), 3 * @sizeOf(f32));
     gl.EnableVertexAttribArray(1);
 
-    gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, 8 * @sizeOf(f32), 6 * @sizeOf(f32));
-    gl.EnableVertexAttribArray(2);
-
-    gl.BindBuffer(gl.ARRAY_BUFFER, 0);
-    gl.BindVertexArray(0);
-    // gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE);
-
-    // var texture: c_uint = undefined;
-    // gl.GenTextures(1, (&texture)[0..1]);
-    // gl.ActiveTexture(gl.TEXTURE0);
-    // gl.BindTexture(gl.TEXTURE_2D, texture);
-    //
-    // gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    // gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-    //
-    // gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    // gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    //
     zstbi.init(allocator);
     defer zstbi.deinit();
-    //
-    // const image_path = try pathToContent(arena, "texture/container.jpg");
-    // var image = try zstbi.Image.loadFromFile(image_path, 0);
-    // defer image.deinit();
-    //
-    // gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image.width), @intCast(image.height), 0, gl.RGB, gl.UNSIGNED_BYTE, @ptrCast(image.data));
-    // gl.GenerateMipmap(gl.TEXTURE_2D);
+    zstbi.setFlipVerticallyOnLoad(true);
+
+    // gl.BindBuffer(gl.ARRAY_BUFFER, 0);
+    // gl.BindVertexArray(0);
+    // gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE);
+
+    var texture: c_uint = undefined;
+    gl.GenTextures(1, (&texture)[0..1]);
+    gl.ActiveTexture(gl.TEXTURE0);
+    gl.BindTexture(gl.TEXTURE_2D, texture);
+
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    const image_path = try pathToContent(arena, "texture/gress.jpg");
+    var image = try zstbi.Image.loadFromFile(image_path, 0);
+    defer image.deinit();
+
+    gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image.width), @intCast(image.height), 0, gl.RGB, gl.UNSIGNED_BYTE, @ptrCast(image.data));
+    gl.GenerateMipmap(gl.TEXTURE_2D);
 
     var texture2: c_uint = undefined;
     gl.GenTextures(1, (&texture2)[0..1]);
@@ -134,28 +189,58 @@ pub fn main() !void {
     var image2 = try zstbi.Image.loadFromFile(image_path2, 0);
     defer image2.deinit();
 
-    gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image2.width), @intCast(image2.height), 0, gl.RGB, gl.UNSIGNED_BYTE, @ptrCast(image2.data));
+    gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image2.width), @intCast(image2.height), 0, gl.RGBA, gl.UNSIGNED_BYTE, @ptrCast(image2.data));
+
+    gl.Enable(gl.DEPTH_TEST);
 
     ourShader.use();
-    // ourShader.setInt("texture1", 0);
+    ourShader.setInt("texture1", 0);
     ourShader.setInt("texture2", 1);
+
+    var projection: [16]f32 = undefined;
+    var view: [16]f32 = undefined;
+    var model: [16]f32 = undefined;
+
+    const trans2 = zm.translation(0, 0, -3);
+    zm.storeMat(&view, trans2);
+    ourShader.setMat4f("view", view);
 
     while (!glfw.windowShouldClose(window)) {
         processInput(window);
 
+        gl.Clear(gl.DEPTH_BUFFER_BIT);
         gl.Clear(gl.COLOR_BUFFER_BIT);
         gl.ClearColor(0.2, 0.3, 0.3, 1);
 
-        // gl.ActiveTexture(gl.TEXTURE0);
-        // gl.BindTexture(gl.TEXTURE_2D, texture);
+        gl.ActiveTexture(gl.TEXTURE0);
+        gl.BindTexture(gl.TEXTURE_2D, texture);
 
         gl.ActiveTexture(gl.TEXTURE1);
         gl.BindTexture(gl.TEXTURE_2D, texture2);
 
         ourShader.use();
+
         gl.BindVertexArray(VAO);
-        gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
-        // gl.DrawArrays(gl.TRIANGLES, 0, 3);
+        // gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
+
+        const window_size = window.getSize();
+        const fov = @as(f32, @floatFromInt(window_size[0])) / @as(f32, @floatFromInt(window_size[1]));
+        const prt = zm.perspectiveFovRhGl(45.0 * rad_conversion, fov, 0.1, 100.0);
+        zm.storeMat(&projection, prt);
+
+        ourShader.setMat4f("projection", projection);
+
+        for (indices, 0..) |indice, i| {
+            const angle = (((@mod(@as(f32, @floatFromInt(i + 1)), 2.0)) * 2.0) - 1.0);
+            const rotate = zm.matFromAxisAngle(zm.f32x4(1.0, 0.3, 0.5, 1.0), @as(f32, @floatCast(glfw.getTime())) * 55.0 * angle * rad_conversion);
+            const cube = zm.translation(indice[0], indice[1], indice[2]);
+            const trans = zm.mul(rotate, cube);
+            zm.storeMat(&model, trans);
+            ourShader.setMat4f("model", model);
+            gl.DrawArrays(gl.TRIANGLES, 0, 36);
+        }
+
+        gl.DrawArrays(gl.TRIANGLES, 0, 3);
 
         window.swapBuffers();
         glfw.pollEvents();
