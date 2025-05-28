@@ -17,10 +17,6 @@ pub fn build(b: *std.Build) void {
     });
 
     exe.linkSystemLibrary("c");
-    exe.linkSystemLibrary("wayland-client");
-    exe.linkSystemLibrary("wayland-cursor");
-    exe.linkSystemLibrary("wayland-egl");
-    exe.linkSystemLibrary("xkbcommon"); // if keyboard input needed
     exe.linkSystemLibrary("glfw");
 
     const zglfw = b.dependency("zglfw", .{});
@@ -33,13 +29,6 @@ pub fn build(b: *std.Build) void {
     const zstbi = b.dependency("zstbi", .{});
     exe.root_module.addImport("zstbi", zstbi.module("root"));
 
-    const zm = b.dependency("zm", .{});
-    exe_mod.addImport("zm", zm.module("zm"));
-
-    const zigimg_dependency = b.dependency("zigimg", .{
-        .target = target,
-        .optimize = optimize,
-    });
     const cimgui_dep = b.dependency("cimgui_zig", .{
         .target = target,
         .optimize = optimize,
@@ -47,8 +36,6 @@ pub fn build(b: *std.Build) void {
         .renderer = cimgui.Renderer.OpenGL3,
     });
     exe.linkLibrary(cimgui_dep.artifact("cimgui"));
-
-    exe.root_module.addImport("zigimg", zigimg_dependency.module("zigimg"));
 
     const gl_bindings = @import("zigglgen").generateBindingsModule(b, .{
         .api = .gl,

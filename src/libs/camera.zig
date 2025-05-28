@@ -3,7 +3,7 @@ const zm = @import("zmath");
 
 const Camera = @This();
 
-pub const cameraMovement = enum { FORWARD, BACKWARD, LEFT, RIGHT };
+pub const cameraMovement = enum { FORWARD, BACKWARD, LEFT, RIGHT, UP, DOWN };
 const speed: f32 = 25.0;
 const sensitivity: f32 = 0.1;
 
@@ -55,6 +55,8 @@ pub fn mouseCallback(self: *Camera, xoffset: f32, yoffset: f32) void {
     front[1] = @sin(self.pitch * rad_conversion);
     front[2] = @sin(self.yaw * rad_conversion) * @cos(self.pitch * rad_conversion);
     self.front = zm.normalize4(front);
+    self.right = zm.normalize3(zm.cross3(self.front, self.worldUp));
+    self.up = zm.normalize3(zm.cross3(self.right, self.front));
 }
 
 pub fn movement(self: *Camera, dir: cameraMovement, daltaTime: f32) void {
@@ -64,5 +66,7 @@ pub fn movement(self: *Camera, dir: cameraMovement, daltaTime: f32) void {
         .BACKWARD => self.position -= self.front * cameraSpeed,
         .LEFT => self.position -= self.right * cameraSpeed,
         .RIGHT => self.position += self.right * cameraSpeed,
+        .UP => self.position += self.up * cameraSpeed,
+        .DOWN => self.position -= self.up * cameraSpeed,
     }
 }

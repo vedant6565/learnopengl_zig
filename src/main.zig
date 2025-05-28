@@ -56,6 +56,11 @@ pub fn main() !void {
     gl.makeProcTableCurrent(&procs);
     defer gl.makeProcTableCurrent(null);
 
+    // gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL);
+    // gl.Enable(gl.CULL_FACE);
+    // gl.CullFace(gl.BACK);
+    // gl.FrontFace(gl.CW);
+
     gl.Enable(gl.DEPTH_TEST);
 
     _ = c.CIMGUI_CHECKVERSION();
@@ -305,6 +310,10 @@ fn processInput(window: *glfw.Window) void {
         camera.movement(Camera.cameraMovement.LEFT, deltaTime);
     if (glfw.getKey(window, glfw.Key.d) == .press)
         camera.movement(Camera.cameraMovement.RIGHT, deltaTime);
+    if (glfw.getKey(window, glfw.Key.left_shift) == .press)
+        camera.movement(Camera.cameraMovement.DOWN, deltaTime);
+    if (glfw.getKey(window, glfw.Key.space) == .press)
+        camera.movement(Camera.cameraMovement.UP, deltaTime);
 }
 
 pub fn pathToContent(arena: std.mem.Allocator, resource_relative_path: []const u8) ![:0]const u8 {
