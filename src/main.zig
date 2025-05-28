@@ -3,29 +3,33 @@ const glfw = @import("zglfw");
 const gl = @import("gl");
 const zm = @import("zmath");
 const zstbi = @import("zstbi");
+const c = @cImport({
+    @cInclude("backends/dcimgui_impl_glfw.h");
+    @cInclude("backends/dcimgui_impl_opengl3.h");
+});
 const Shader = @import("libs/shader.zig");
+const Camera = @import("libs/camera.zig");
+
+const print = std.debug.print;
 
 const WindowSize = struct {
     pub const width: c_int = 800;
     pub const height: c_int = 600;
 };
 
-var cameraPos = zm.f32x4(0, 0, 3, 0);
-const cameraFront = zm.f32x4(0, 0, -1, 0);
-const cameraUp = zm.f32x4(0, 1, 0, 0);
+var enableMouse = false;
 
-const firstMouse = true;
-var yaw: f32 = -90.0;
-var pitch: f32 = 0.0;
+var firstMouse = true;
 var lastX: f32 = 800.0 / 2.0;
 var lastY: f32 = 600.0 / 2.0;
-var fov: f32 = 45.0;
+var camera = Camera.create(zm.f32x4(0, 0, 20, 0));
 
 var deltaTime: f32 = 0;
 var lastFrame: f32 = 0;
 
 var procs: gl.ProcTable = undefined;
 const rad_conversion = std.math.pi / 180.0;
+const chunck = [3]u32{ 16, 90, 16 };
 
 pub fn main() !void {
     try glfw.init();
@@ -42,11 +46,32 @@ pub fn main() !void {
     glfw.makeContextCurrent(window);
     defer glfw.makeContextCurrent(null);
     _ = glfw.setFramebufferSizeCallback(window, framebufferSizeCallback);
+    _ = glfw.setCursorPosCallback(window, mouseCallback);
+    _ = glfw.setScrollCallback(window, scrollCallback);
+
+    try glfw.setInputMode(window, glfw.InputMode.cursor, glfw.Cursor.Mode.disabled);
 
     if (!procs.init(glfw.getProcAddress)) return error.InitFailed;
 
     gl.makeProcTableCurrent(&procs);
     defer gl.makeProcTableCurrent(null);
+
+    gl.Enable(gl.DEPTH_TEST);
+
+    _ = c.CIMGUI_CHECKVERSION();
+    _ = c.ImGui_CreateContext(null);
+    defer c.ImGui_DestroyContext(null);
+
+    const imio = c.ImGui_GetIO();
+    imio.*.ConfigFlags = c.ImGuiConfigFlags_NavEnableKeyboard;
+
+    c.ImGui_StyleColorsDark(null);
+
+    _ = c.cImGui_ImplGlfw_InitForOpenGL(@ptrCast(window), true);
+    defer c.cImGui_ImplGlfw_Shutdown();
+
+    _ = c.cImGui_ImplOpenGL3_InitEx("#version 430");
+    defer c.cImGui_ImplOpenGL3_Shutdown();
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -60,20 +85,6 @@ pub fn main() !void {
         "shaders/fragment.glsl",
     );
     defer gl.DeleteProgram(ourShader.ID);
-
-    // const vertices = [_]f32{
-    //     // positions      // colors        // texture coords
-    //     0.5, 0.5, 0.0, 0.3333, 0.50, // top right
-    //     0.5, -0.5, 0.0, 0.3333, 0.25, // bottom right
-    //     -0.5, -0.5, 0.0, 0.0, 0.25, // bottom left
-    //     -0.5, 0.5, 0.0, 0.0, 0.50, // top left
-    // };
-    //
-    // const indices = [_]c_uint{
-    //     // note that we start from 0!
-    //     0, 1, 3, // first triangle
-    //     1, 2, 3, // second triangle
-    // };
 
     const vertices = [_]f32{
         // positions          // texture coords
@@ -98,19 +109,19 @@ pub fn main() !void {
         -0.5, 0.5,  -0.5, 0.25, 0.6666,
         -0.5, -0.5, -0.5, 0.25, 0.3333,
 
-        -0.5, 0.5,  0.5,  0.25, 0.3333,
-        -0.5, 0.5,  -0.5, 0.25, 0.6666,
-        -0.5, -0.5, -0.5, 0.0,  0.6666,
-        -0.5, -0.5, -0.5, 0.0,  0.6666,
-        -0.5, -0.5, 0.5,  0.0,  0.3333,
-        -0.5, 0.5,  0.5,  0.25, 0.3333,
+        -0.5, 0.5,  0.5,  0.25, 0.6666,
+        -0.5, 0.5,  -0.5, 0.50, 0.6666,
+        -0.5, -0.5, -0.5, 0.50, 0.3333,
+        -0.5, -0.5, -0.5, 0.50, 0.3333,
+        -0.5, -0.5, 0.5,  0.25, 0.3333,
+        -0.5, 0.5,  0.5,  0.25, 0.6666,
 
-        0.5,  0.5,  0.5,  1.0,  0.3333,
-        0.5,  0.5,  -0.5, 1.0,  0.6666,
-        0.5,  -0.5, -0.5, 0.75, 0.6666,
-        0.5,  -0.5, -0.5, 0.75, 0.6666,
-        0.5,  -0.5, 0.5,  0.75, 0.3333,
-        0.5,  0.5,  0.5,  1.0,  0.3333,
+        0.5,  0.5,  0.5,  0.25, 0.6666,
+        0.5,  0.5,  -0.5, 0.50, 0.6666,
+        0.5,  -0.5, -0.5, 0.50, 0.3333,
+        0.5,  -0.5, -0.5, 0.50, 0.3333,
+        0.5,  -0.5, 0.5,  0.25, 0.3333,
+        0.5,  0.5,  0.5,  0.25, 0.6666,
 
         -0.5, -0.5, -0.5, 0.25, 0.3333,
         0.5,  -0.5, -0.5, 0.50, 0.3333,
@@ -120,22 +131,33 @@ pub fn main() !void {
         -0.5, -0.5, -0.5, 0.25, 0.3333,
     };
 
-    const indices = [_][3]f32{
-        .{ 0.0, 0.0, 0.0 }, //
-        .{ 2.0, 5.0, -15.0 }, //
-        .{ -1.5, -2.2, -2.5 }, //
-        .{ -3.8, -2.0, -12.3 }, //
-        .{ 2.4, -0.4, -3.5 }, //
-        .{ -1.7, 3.0, -7.5 }, //
-        .{ 1.3, -2.0, -2.5 }, //
-        .{ 1.5, 2.0, -2.5 }, //
-        .{ 1.5, 0.2, -1.5 }, //
-        .{ -1.3, 1.0, -1.5 }, //
-    };
+    var indices: [chunck[0] * chunck[1] * chunck[2]][3]f32 = undefined;
+
+    var count: u32 = 0;
+    for (0..chunck[0]) |i| {
+        for (0..chunck[1]) |j| {
+            for (0..chunck[2]) |k| {
+                indices[count] = [3]f32{ @as(f32, @floatFromInt(i)), @as(f32, @floatFromInt(j)), @as(f32, @floatFromInt(k)) };
+                count += 1;
+            }
+        }
+    }
+
+    // const indices = [_][3]f32{
+    //     .{ 0.0, 0.0, 0.0 }, //
+    //     .{ 2.0, 5.0, -15.0 }, //
+    //     .{ -1.5, -2.2, -2.5 }, //
+    //     .{ -3.8, -2.0, -12.3 }, //
+    //     .{ 2.4, -0.4, -3.5 }, //
+    //     .{ -1.7, 3.0, -7.5 }, //
+    //     .{ 1.3, -2.0, -2.5 }, //
+    //     .{ 1.5, 2.0, -2.5 }, //
+    //     .{ 1.5, 0.2, -1.5 }, //
+    //     .{ -1.3, 1.0, -1.5 }, //
+    // };
 
     var VBO: c_uint = undefined;
     var VAO: c_uint = undefined;
-    // var EBO: c_uint = undefined;
 
     gl.GenVertexArrays(1, (&VAO)[0..1]);
     defer gl.DeleteVertexArrays(1, (&VAO)[0..1]);
@@ -143,21 +165,12 @@ pub fn main() !void {
     gl.GenBuffers(1, (&VBO)[0..1]);
     defer gl.DeleteBuffers(1, (&VBO)[0..1]);
 
-    // gl.GenBuffers(1, (&EBO)[0..1]);
-    // defer gl.DeleteBuffers(1, (&EBO)[0..1]);
-
     gl.BindVertexArray(VAO);
     gl.BindBuffer(gl.ARRAY_BUFFER, VBO);
     gl.BufferData(gl.ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, gl.STATIC_DRAW);
 
-    // gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, EBO);
-    // gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, @sizeOf(c_uint) * indices.len, &indices, gl.STATIC_DRAW);
-
     gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 5 * @sizeOf(f32), 0);
     gl.EnableVertexAttribArray(0);
-
-    // gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 8 * @sizeOf(f32), 3 * @sizeOf(f32));
-    // gl.EnableVertexAttribArray(1);
 
     gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 5 * @sizeOf(f32), 3 * @sizeOf(f32));
     gl.EnableVertexAttribArray(1);
@@ -165,10 +178,6 @@ pub fn main() !void {
     zstbi.init(allocator);
     defer zstbi.deinit();
     // zstbi.setFlipVerticallyOnLoad(true);
-
-    // gl.BindBuffer(gl.ARRAY_BUFFER, 0);
-    // gl.BindVertexArray(0);
-    // gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE);
 
     var texture: c_uint = undefined;
     gl.GenTextures(1, (&texture)[0..1]);
@@ -188,28 +197,8 @@ pub fn main() !void {
     gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image.width), @intCast(image.height), 0, gl.RGB, gl.UNSIGNED_BYTE, @ptrCast(image.data));
     gl.GenerateMipmap(gl.TEXTURE_2D);
 
-    // var texture2: c_uint = undefined;
-    // gl.GenTextures(1, (&texture2)[0..1]);
-    // gl.ActiveTexture(gl.TEXTURE1);
-    // gl.BindTexture(gl.TEXTURE_2D, texture2);
-    //
-    // gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    // gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-    //
-    // gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    // gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-    // const image_path2 = try pathToContent(arena, "texture/awesomeface.png");
-    // var image2 = try zstbi.Image.loadFromFile(image_path2, 0);
-    // defer image2.deinit();
-    //
-    // gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image2.width), @intCast(image2.height), 0, gl.RGBA, gl.UNSIGNED_BYTE, @ptrCast(image2.data));
-
-    gl.Enable(gl.DEPTH_TEST);
-
     ourShader.use();
     ourShader.setInt("texture1", 0);
-    // ourShader.setInt("texture2", 1);
 
     var projection: [16]f32 = undefined;
     var view: [16]f32 = undefined;
@@ -222,6 +211,10 @@ pub fn main() !void {
 
         processInput(window);
 
+        c.cImGui_ImplOpenGL3_NewFrame();
+        c.cImGui_ImplGlfw_NewFrame();
+        c.ImGui_NewFrame();
+
         gl.ClearColor(0.2, 0.3, 0.3, 1);
         gl.Clear(gl.DEPTH_BUFFER_BIT);
         gl.Clear(gl.COLOR_BUFFER_BIT);
@@ -229,29 +222,24 @@ pub fn main() !void {
         gl.ActiveTexture(gl.TEXTURE0);
         gl.BindTexture(gl.TEXTURE_2D, texture);
 
-        // gl.ActiveTexture(gl.TEXTURE1);
-        // gl.BindTexture(gl.TEXTURE_2D, texture2);
-
         ourShader.use();
-
-        gl.BindVertexArray(VAO);
-        // gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, 0);
 
         const window_size = window.getSize();
         const aspect = @as(f32, @floatFromInt(window_size[0])) / @as(f32, @floatFromInt(window_size[1]));
-        const prt = zm.perspectiveFovRhGl(fov * rad_conversion, aspect, 0.1, 100.0);
+        const prt = zm.perspectiveFovRhGl(camera.zoom * rad_conversion, aspect, 0.1, 100.0);
         zm.storeMat(&projection, prt);
 
         ourShader.setMat4f("projection", projection);
 
-        const trans2 = zm.lookAtRh(cameraPos, cameraPos + cameraFront, cameraUp);
+        const trans2 = camera.getViewM();
         zm.storeMat(&view, trans2);
         ourShader.setMat4f("view", view);
 
-        for (indices, 0..) |indice, i| {
-            // const angle = (((@mod(@as(f32, @floatFromInt(i + 1)), 2.0)) * 2.0) - 1.0);
-            _ = (((@mod(@as(f32, @floatFromInt(i + 1)), 2.0)) * 2.0) - 1.0);
-            // const rotate = zm.matFromAxisAngle(zm.f32x4(1.0, 0.3, 0.5, 1.0), @as(f32, @floatCast(glfw.getTime())) * 55.0 * angle * rad_conversion);
+        gl.BindVertexArray(VAO);
+        for (indices, 0..) |indice, index| {
+            // const angle = 20.0 * @as(f32, @floatFromInt(i + 1));
+
+            _ = 20.0 * @as(f32, @floatFromInt(index + 1));
             const rotate = zm.rotationZ(0);
             const cube = zm.translation(indice[0], indice[1], indice[2]);
             const trans = zm.mul(rotate, cube);
@@ -260,7 +248,12 @@ pub fn main() !void {
             gl.DrawArrays(gl.TRIANGLES, 0, 36);
         }
 
-        // gl.DrawArrays(gl.TRIANGLES, 0, 3);
+        _ = c.ImGui_Begin("test", c.true, 1);
+        c.ImGui_Text("FPS: %f", 1.0 / deltaTime);
+        c.ImGui_End();
+
+        c.ImGui_Render();
+        c.cImGui_ImplOpenGL3_RenderDrawData(c.ImGui_GetDrawData());
 
         window.swapBuffers();
         glfw.pollEvents();
@@ -272,20 +265,46 @@ fn framebufferSizeCallback(window: *glfw.Window, width: c_int, hight: c_int) cal
     gl.Viewport(0, 0, width, hight);
 }
 
+fn scrollCallback(window: *glfw.Window, xoffsetIn: f64, yoffsetIn: f64) callconv(.c) void {
+    _ = window;
+    _ = xoffsetIn;
+
+    const yoffset = @as(f32, @floatCast(yoffsetIn));
+    camera.scrollCallback(yoffset);
+}
+
+fn mouseCallback(window: *glfw.Window, xposIn: f64, yposIn: f64) callconv(.c) void {
+    _ = window;
+    const xpos = @as(f32, @floatCast(xposIn));
+    const ypos = @as(f32, @floatCast(yposIn));
+
+    if (firstMouse) {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+
+    const xoffset = xpos - lastX;
+    const yoffset = lastY - ypos;
+    lastX = xpos;
+    lastY = ypos;
+
+    camera.mouseCallback(xoffset, yoffset);
+}
+
 fn processInput(window: *glfw.Window) void {
     if (glfw.getKey(window, glfw.Key.escape) == glfw.Action.press) {
         glfw.setWindowShouldClose(window, true);
     }
 
-    const cameraSpeed = zm.f32x4s(2.5 * deltaTime);
-    if (glfw.getKey(window, glfw.Key.w) == glfw.Action.press)
-        cameraPos += cameraFront * cameraSpeed;
-    if (glfw.getKey(window, glfw.Key.s) == glfw.Action.press)
-        cameraPos -= cameraFront * cameraSpeed;
-    if (glfw.getKey(window, glfw.Key.a) == glfw.Action.press)
-        cameraPos -= zm.normalize4(zm.cross3(cameraFront, cameraUp)) * cameraSpeed;
-    if (glfw.getKey(window, glfw.Key.d) == glfw.Action.press)
-        cameraPos += zm.normalize4(zm.cross3(cameraFront, cameraUp)) * cameraSpeed;
+    if (glfw.getKey(window, glfw.Key.w) == .press)
+        camera.movement(Camera.cameraMovement.FORWARD, deltaTime);
+    if (glfw.getKey(window, glfw.Key.s) == .press)
+        camera.movement(Camera.cameraMovement.BACKWARD, deltaTime);
+    if (glfw.getKey(window, glfw.Key.a) == .press)
+        camera.movement(Camera.cameraMovement.LEFT, deltaTime);
+    if (glfw.getKey(window, glfw.Key.d) == .press)
+        camera.movement(Camera.cameraMovement.RIGHT, deltaTime);
 }
 
 pub fn pathToContent(arena: std.mem.Allocator, resource_relative_path: []const u8) ![:0]const u8 {

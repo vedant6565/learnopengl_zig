@@ -64,6 +64,10 @@
             .url = "git+https://github.com/griush/zm#3abba8c5a5b5c93e7374bffbd6740e687fb18f7d",
             .hash = "zm-0.3.0-cLX-WQvNAADFZdfz6P8uKShdAL7gUncyKthhdtxWRieo",
         },
+        .cimgui_zig = .{
+            .url = "git+https://github.com/tiawl/cimgui.zig#5f0abea8428e6fffabe94a0798e4e7d5a4a3894d",
+            .hash = "cimgui_zig-1.0.0-2Xubkh1kUADYG1RHswl47yffbjgtBE6Yuqfx4B4nrCkf",
+        },
     },
     .paths = .{
         "build.zig",

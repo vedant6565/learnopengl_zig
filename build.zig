@@ -1,4 +1,5 @@
 const std = @import("std");
+const cimgui = @import("cimgui_zig");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -39,6 +40,13 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    const cimgui_dep = b.dependency("cimgui_zig", .{
+        .target = target,
+        .optimize = optimize,
+        .platform = cimgui.Platform.GLFW,
+        .renderer = cimgui.Renderer.OpenGL3,
+    });
+    exe.linkLibrary(cimgui_dep.artifact("cimgui"));
 
     exe.root_module.addImport("zigimg", zigimg_dependency.module("zigimg"));
 
