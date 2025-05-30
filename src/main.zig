@@ -3,6 +3,7 @@ const glfw = @import("zglfw");
 const gl = @import("gl");
 const zm = @import("zmath");
 const zstbi = @import("zstbi");
+const znoise = @import("znoise");
 const c = @cImport({
     @cInclude("backends/dcimgui_impl_glfw.h");
     @cInclude("backends/dcimgui_impl_opengl3.h");
@@ -91,8 +92,20 @@ pub fn main() !void {
     );
     defer gl.DeleteProgram(ourShader.ID);
 
+    const gen = znoise.FnlGenerator{};
+    const n2 = gen.noise2(0.1, 0.2);
+    const n3 = gen.noise3(1.0, 2.0, 3.0);
+
+    var x1: f32 = 1.0;
+    var y2: f32 = 2.0;
+    var z3: f32 = 3.0;
+    gen.domainWarp3(&x1, &y2, &z3);
+    print("{d} {d} {d} {d} {d}\n", .{ x1, y2, z3, n2, n3 });
+
+    var elevation: [chunck[0]][chunck[1]][chunck[2]]f32 = undefined;
+
     const vertices = [_]f32{
-        // positions          // texture coords
+        // positions      // texture coords
         -0.5, 0.5,  -0.5, 0.25, 0.6666,
         0.5,  0.5,  -0.5, 0.50, 0.6666,
         0.5,  0.5,  0.5,  0.50, 1.0,
@@ -142,7 +155,10 @@ pub fn main() !void {
     for (0..chunck[0]) |i| {
         for (0..chunck[1]) |j| {
             for (0..chunck[2]) |k| {
+                const nx = @as(f32, @floatFromInt(i)) / WindowSize.width - 0.5;
+                const ny = @as(f32, @floatFromInt(j)) / WindowSize.height - 0.5;
                 indices[count] = [3]f32{ @as(f32, @floatFromInt(i)), @as(f32, @floatFromInt(j)), @as(f32, @floatFromInt(k)) };
+                elevation[i][j][k] = gen.noise2(1.0 * nx, 2.0 * ny);
                 count += 1;
             }
         }
@@ -302,18 +318,18 @@ fn processInput(window: *glfw.Window) void {
         glfw.setWindowShouldClose(window, true);
     }
 
-    if (glfw.getKey(window, glfw.Key.w) == .press)
-        camera.movement(Camera.cameraMovement.FORWARD, deltaTime);
-    if (glfw.getKey(window, glfw.Key.s) == .press)
-        camera.movement(Camera.cameraMovement.BACKWARD, deltaTime);
-    if (glfw.getKey(window, glfw.Key.a) == .press)
-        camera.movement(Camera.cameraMovement.LEFT, deltaTime);
-    if (glfw.getKey(window, glfw.Key.d) == .press)
-        camera.movement(Camera.cameraMovement.RIGHT, deltaTime);
-    if (glfw.getKey(window, glfw.Key.left_shift) == .press)
-        camera.movement(Camera.cameraMovement.DOWN, deltaTime);
-    if (glfw.getKey(window, glfw.Key.space) == .press)
-        camera.movement(Camera.cameraMovement.UP, deltaTime);
+    if (glfw.getKey(window, .w) == .press)
+        camera.movement(.FORWARD, deltaTime);
+    if (glfw.getKey(window, .s) == .press)
+        camera.movement(.BACKWARD, deltaTime);
+    if (glfw.getKey(window, .a) == .press)
+        camera.movement(.LEFT, deltaTime);
+    if (glfw.getKey(window, .d) == .press)
+        camera.movement(.RIGHT, deltaTime);
+    if (glfw.getKey(window, .left_shift) == .press)
+        camera.movement(.DOWN, deltaTime);
+    if (glfw.getKey(window, .space) == .press)
+        camera.movement(.UP, deltaTime);
 }
 
 pub fn pathToContent(arena: std.mem.Allocator, resource_relative_path: []const u8) ![:0]const u8 {

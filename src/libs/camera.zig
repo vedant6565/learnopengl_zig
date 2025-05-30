@@ -23,8 +23,7 @@ pub fn create(pos: zm.F32x4) Camera {
     const _front = zm.loadArr3(.{ 0.0, 0.0, -1.0 });
     const _world_up = zm.loadArr3(.{ 0.0, 1.0, 0.0 });
     const _right = zm.normalize3(zm.cross3(_front, _world_up));
-    const _up = zm.normalize3(zm.cross3(_right, _front));
-    return Camera{ .position = pos, .up = _up, .right = _right, .worldUp = _world_up };
+    return Camera{ .position = pos, .right = _right, .worldUp = _world_up };
 }
 
 pub fn getViewM(self: *Camera) zm.Mat {
@@ -54,9 +53,10 @@ pub fn mouseCallback(self: *Camera, xoffset: f32, yoffset: f32) void {
     front[0] = @cos(self.yaw * rad_conversion) * @cos(self.pitch * rad_conversion);
     front[1] = @sin(self.pitch * rad_conversion);
     front[2] = @sin(self.yaw * rad_conversion) * @cos(self.pitch * rad_conversion);
+
     self.front = zm.normalize4(front);
     self.right = zm.normalize3(zm.cross3(self.front, self.worldUp));
-    self.up = zm.normalize3(zm.cross3(self.right, self.front));
+    // self.up = zm.normalize3(zm.cross3(self.right, self.front));
 }
 
 pub fn movement(self: *Camera, dir: cameraMovement, daltaTime: f32) void {
